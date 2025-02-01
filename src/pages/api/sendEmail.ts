@@ -1,35 +1,38 @@
-import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../api/mongodb"; // Ensure the correct path
+import { NextApiRequest, NextApiResponse } from 'next';
+import { MongoClient } from 'mongodb';
+
+const uri = process.env.MONGODB_URI || '';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method Not Allowed" });
-  }
-
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and Password are required" });
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    console.log("Received Data:", { email, password });
+    try {
+        console.log('Connecting to MongoDB...');
+        const client = new MongoClient(uri);
+        await client.connect();
+        console.log('Connected successfully to MongoDB');
 
-    const client = await clientPromise;
-    const db = client.db("Gunner"); // Your database name
-    const collection = db.collection("users"); // Collection name
+        const db = client.db('Gunner'); // Make sure this matches your database name
+        const collection = db.collection('pass'); // Make sure this matches your collection name
 
-    const result = await collection.insertOne({ email, password });
+        const { email, password } = req.body;
 
-    return res.status(201).json({ message: "User saved successfully!", data: result });
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error("Error saving user:", error.message);
-      res.status(500).json({ error: error.message });
-    } else {
-      console.error("An unknown error occurred:", error);
-      res.status(500).json({ error: "An unknown error occurred" });
+        if (!email || !password) {
+            console.log('Validation failed: Missing email or password');
+            return res.status(400).json({ error: 'Email and password are required' });
+        }
+
+        // Insert user data
+        await collection.insertOne({ email, password });
+
+        console.log('User saved successfully!');
+        client.close();
+
+        return res.status(201).json({ message: 'User saved successfully' });
+    } catch (error: any) { // Cast error to 'any'
+        console.error('Error saving user:', error);
+        return res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
-  }
-  
 }
